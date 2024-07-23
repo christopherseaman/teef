@@ -10,6 +10,14 @@ This is an annotation app for x-ray images. The masks identify teeth as green an
 - `pip install -r requirements.txt`
 - `python3 app.py`
 - Visit `http://localhost:5000`
+- Controls:
+    - Previous/Next: Save edits and move to the previous/next image
+    - Clear (x): Clear current mask completely
+    - Tool toggle (brush/sponge): Toggle between drawing and erasing
+    - Brush size (slider): Adjust the current brush size for both drawing and erasing
+
+[screenshot of drawing tool](screenshot.png)
+
 
 ## Functionality
 - Upon load the img param with dictate the filename of the image + mask to be loaded, if none then load the first image
