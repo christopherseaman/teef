@@ -250,8 +250,6 @@ function hideBrushOutline() {
 }
 
 function drawBrushOutline(event) {
-    if (isDrawing) return; // Do not draw outline while drawing
-
     const pos = getMousePos(overlayCanvas, event);
 
     // Clear the previous overlay and redraw the mask
@@ -261,7 +259,8 @@ function drawBrushOutline(event) {
     // Draw brush outline
     overlayCtx.beginPath();
     overlayCtx.arc(pos.x, pos.y, BRUSH_SIZE, 0, Math.PI * 2);
-    overlayCtx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
+    // Green outline for brush, red outline for eraser
+    overlayCtx.strokeStyle = tool === 'brush' ? 'rgba(0, 255, 0, 0.6)' : 'rgba(255, 0, 0, 0.6)';
     overlayCtx.lineWidth = 2;
     overlayCtx.stroke();
 }
