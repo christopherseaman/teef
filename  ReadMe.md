@@ -2,6 +2,15 @@
 
 This is an annotation app for x-ray images. The masks identify teeth as green and it may be edited using a brush and eraser.
 
+## Usage
+- Make an "images" directory for the images
+- Make a "masks" directory for the masks
+- Each image should have a corresponding mask with the same filename
+- (Recommended) Make a virtual environment
+- `pip install -r requirements.txt`
+- `python3 app.py`
+- Visit `http://localhost:5000`
+
 ## Functionality
 - Upon load the img param with dictate the filename of the image + mask to be loaded, if none then load the first image
 - Drawing should create full white on the image, which is then applied to the canvas as green channel only. okay to have the client treat the mask image as having an alpha channel
@@ -11,7 +20,7 @@ This is an annotation app for x-ray images. The masks identify teeth as green an
 
 ## Example usage
 1. Load page with image/mask pair
-2. Existing grayscale mask drawn with white → green, black → transparent, max 40% opacity
+2. Existing grayscale mask drawn with white -> green, black -> transparent, max 40% opacity
 3. Drawing on the image creates white paths, shown as green as max opacity
 4. Erasing on the image creates black paths, shown as full transparency
 5. Clicking clear sets the whole image to black, shown as full transparency
