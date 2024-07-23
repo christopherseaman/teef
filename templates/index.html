@@ -19,8 +19,6 @@
         }
         .canvas-container {
             position: relative;
-            width: 512px;
-            height: 512px;
         }
         #xrayCanvas, #maskCanvas {
             position: absolute;
@@ -56,208 +54,43 @@
             background: none;
             border: none;
         }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .slider-label {
+            font-size: 18px;
+        }
+        .slider {
+            width: 200px;
+        }
     </style>
 </head>
 <body>
     <h1 id="title">X-ray Mask Editor</h1>
     <div class="editor-container">
-        <button id="prevBtn" class="arrow-btn">←</button>
+        <button id="prev">←</button>
         <div class="canvas-container">
-            <canvas id="xrayCanvas" width="512" height="512"></canvas>
-            <canvas id="maskCanvas" width="512" height="512"></canvas>
+            <canvas id="imageCanvas"></canvas>
+            <canvas id="maskCanvas" style="display: none;"></canvas>
+            <canvas id="overlayCanvas" style="position: absolute; top: 0; left: 0;"></canvas>
         </div>
-        <button id="nextBtn" class="arrow-btn">→</button>
+        <button id="next">→</button>
     </div>
     <div class="controls">
-        <button id="clearBtn">❌</button>
-        <div class="center-controls">
-            <button id="brushBtn">🖌️</button>
-            <button id="spongeBtn">🧽</button>
+        <button id="clear">❌</button>
+        <div class="slider-container">
+            <span class="slider-label">Brush Size: </span>
+            <input type="range" id="brushSizeSlider" class="slider" min="1" max="25" value="5">
+            <span id="brushSizeValue">5</span>
         </div>
-        <div style="width: 44px;"></div> <!-- Spacer to balance the clear button -->
+        <div class="center-controls">
+            <button id="toolToggle">🖌️</button>
+        </div>
     </div>
 
-    <script>
-        const xrayCanvas = document.getElementById('xrayCanvas');
-        const maskCanvas = document.getElementById('maskCanvas');
-        const xrayCtx = xrayCanvas.getContext('2d');
-        const maskCtx = maskCanvas.getContext('2d');
-        const titleElement = document.getElementById('title');
-        let currentIndex = 0;
-        let totalPairs = 0;
-        let isDrawing = false;
-        let tool = 'brush';
-        let singleChannelMask;
-        let lastX, lastY;
-        let currentFilename = '';
-        let prevFilename = '';
-        let nextFilename = '';
-
-        const BRUSH_SIZE = 4;
-        const MAX_OPACITY = 0.4; // 40% max opacity
-
-        function updateURL(filename) {
-            const url = new URL(window.location);
-            url.searchParams.set('img', filename);
-            window.history.pushState({}, '', url);
-        }
-
-        async function loadImages(filename = '') {
-            if (currentFilename) {
-                await saveCurrentMask();
-            }
-            
-            const response = await fetch(`/get_image_pair?img=${filename}`);
-            const data = await response.json();
-            totalPairs = data.total_pairs;
-            currentIndex = data.current_index;
-            currentFilename = data.filename;
-            prevFilename = data.prev_filename;
-            nextFilename = data.next_filename;
-            titleElement.textContent = currentFilename;
-            updateURL(currentFilename);
-
-            const xray = new Image();
-            const mask = new Image();
-            xray.src = data.image;
-            mask.src = data.mask;
-            
-            xray.onload = () => {
-                xrayCtx.clearRect(0, 0, xrayCanvas.width, xrayCanvas.height);
-                xrayCtx.drawImage(xray, 0, 0, xrayCanvas.width, xrayCanvas.height);
-            };
-            
-            mask.onload = () => {
-                singleChannelMask = createSingleChannelMask(mask);
-                applyMaskToCanvas();
-            };
-        }
-
-        function createSingleChannelMask(maskImage) {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = maskCanvas.width;
-            tempCanvas.height = maskCanvas.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            
-            tempCtx.drawImage(maskImage, 0, 0, tempCanvas.width, tempCanvas.height);
-            return tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-        }
-
-        function applyMaskToCanvas() {
-            const imageData = new ImageData(maskCanvas.width, maskCanvas.height);
-            for (let i = 0; i < singleChannelMask.data.length; i += 4) {
-                const gray = singleChannelMask.data[i]; // Use red channel as grayscale value
-                imageData.data[i] = 0;     // R
-                imageData.data[i + 1] = 255; // G
-                imageData.data[i + 2] = 0;   // B
-                imageData.data[i + 3] = Math.round(gray * MAX_OPACITY); // A (scaled by MAX_OPACITY)
-            }
-            maskCtx.putImageData(imageData, 0, 0);
-        }
-
-        async function saveCurrentMask() {
-            if (!currentFilename) return;
-
-            const imageDataUrl = maskCanvas.toDataURL('image/jpeg', 0.95);
-            const response = await fetch('/save_mask', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    image: imageDataUrl,
-                    maskFilename: currentFilename
-                }),
-            });
-            const result = await response.json();
-            console.log(result.message);
-        }
-
-        document.getElementById('prevBtn').addEventListener('click', () => loadImages(prevFilename));
-        document.getElementById('nextBtn').addEventListener('click', () => loadImages(nextFilename));
-
-        document.getElementById('brushBtn').addEventListener('click', () => {
-            tool = 'brush';
-            document.getElementById('brushBtn').style.backgroundColor = '#e8e8e8';
-            document.getElementById('spongeBtn').style.backgroundColor = '#f8f8f8';
-        });
-
-        document.getElementById('spongeBtn').addEventListener('click', () => {
-            tool = 'sponge';
-            document.getElementById('spongeBtn').style.backgroundColor = '#e8e8e8';
-            document.getElementById('brushBtn').style.backgroundColor = '#f8f8f8';
-        });
-
-        document.getElementById('clearBtn').addEventListener('click', () => {
-            singleChannelMask = new ImageData(maskCanvas.width, maskCanvas.height);
-            applyMaskToCanvas();
-        });
-
-        function drawLine(x0, y0, x1, y1) {
-            const dx = Math.abs(x1 - x0);
-            const dy = Math.abs(y1 - y0);
-            const sx = (x0 < x1) ? 1 : -1;
-            const sy = (y0 < y1) ? 1 : -1;
-            let err = dx - dy;
-
-            while (true) {
-                drawPoint(x0, y0);
-
-                if (x0 === x1 && y0 === y1) break;
-                const e2 = 2 * err;
-                if (e2 > -dy) { err -= dy; x0 += sx; }
-                if (e2 < dx) { err += dx; y0 += sy; }
-            }
-        }
-
-        function drawPoint(x, y) {
-            for (let dx = -BRUSH_SIZE; dx <= BRUSH_SIZE; dx++) {
-                for (let dy = -BRUSH_SIZE; dy <= BRUSH_SIZE; dy++) {
-                    if (dx*dx + dy*dy <= BRUSH_SIZE*BRUSH_SIZE) {
-                        const cx = x + dx;
-                        const cy = y + dy;
-                        if (cx >= 0 && cx < maskCanvas.width && cy >= 0 && cy < maskCanvas.height) {
-                            const i = (cy * maskCanvas.width + cx) * 4;
-                            const value = tool === 'brush' ? 255 : 0;
-                            singleChannelMask.data[i] = value;
-                            singleChannelMask.data[i+1] = value;
-                            singleChannelMask.data[i+2] = value;
-                            singleChannelMask.data[i+3] = 255;
-                        }
-                    }
-                }
-            }
-        }
-
-        function draw(e) {
-            if (!isDrawing) return;
-            
-            const rect = maskCanvas.getBoundingClientRect();
-            const x = Math.floor(e.clientX - rect.left);
-            const y = Math.floor(e.clientY - rect.top);
-            
-            drawLine(lastX, lastY, x, y);
-            lastX = x;
-            lastY = y;
-            
-            applyMaskToCanvas();
-        }
-
-        maskCanvas.addEventListener('mousedown', (e) => {
-            isDrawing = true;
-            const rect = maskCanvas.getBoundingClientRect();
-            lastX = Math.floor(e.clientX - rect.left);
-            lastY = Math.floor(e.clientY - rect.top);
-            draw(e);
-        });
-        maskCanvas.addEventListener('mousemove', draw);
-        maskCanvas.addEventListener('mouseup', () => isDrawing = false);
-        maskCanvas.addEventListener('mouseout', () => isDrawing = false);
-
-        // Load initial image from URL or default to first image
-        const urlParams = new URLSearchParams(window.location.search);
-        const initialImg = urlParams.get('img') || '';
-        loadImages(initialImg);
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>

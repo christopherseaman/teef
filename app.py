@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
 from PIL import Image
@@ -8,7 +7,6 @@ import numpy as np
 
 app = Flask(__name__)
 
-# Configure these paths according to your directory structure
 IMAGE_FOLDER = 'images'
 MASK_FOLDER = 'masks'
 
@@ -20,35 +18,36 @@ def index():
 @app.route('/get_image_pair')
 def get_image_pair():
     img = request.args.get('img', '')
+    direction = request.args.get('direction', '')
     image_files = sorted(os.listdir(IMAGE_FOLDER))
     
     if img and img in image_files:
         current_index = image_files.index(img)
     else:
-        current_index = int(request.args.get('index', 0))
-    
-    if current_index < 0 or current_index >= len(image_files):
-        return jsonify({'error': 'Invalid image or index'}), 400
-    
-    prev_index = (current_index - 1) % len(image_files)
-    next_index = (current_index + 1) % len(image_files)
+        current_index = 0
 
+    if direction == 'prev':
+        current_index = (current_index - 1) % len(image_files)
+    elif direction == 'next':
+        current_index = (current_index + 1) % len(image_files)
+    
     current_filename = image_files[current_index]
     mask_path = os.path.join(MASK_FOLDER, current_filename)
     if not os.path.exists(mask_path):
         image = Image.open(os.path.join(IMAGE_FOLDER, current_filename))
-        mask = Image.new('L', image.size, 0)  # Create a black mask
-        mask.save(mask_path)
+        mask = Image.new('L', image.size, 0)  # Create a black (fully transparent) mask
+        mask.save(mask_path, 'JPEG', quality=98)
     
     return jsonify({
-        'image': f'/image/{IMAGE_FOLDER}/{current_filename}',
-        'mask': f'/image/{MASK_FOLDER}/{current_filename}',
         'filename': current_filename,
-        'prev_filename': image_files[prev_index],
-        'next_filename': image_files[next_index],
         'total_pairs': len(image_files),
-        'current_index': current_index
+        'current_index': current_index 
     })
+
+@app.route('/app.js')
+def serve_app_js():
+    # send the app.js file
+    return send_from_directory('', 'app.js')
 
 @app.route('/image/<path:filename>')
 def serve_image(filename):
@@ -64,11 +63,11 @@ def save_mask():
     
     mask_path = os.path.join(MASK_FOLDER, mask_filename)
     
-    # Open the image and ensure it's grayscale
+    # Open the image and convert to grayscale
     image = Image.open(io.BytesIO(image_data)).convert('L')
     
-    # Save the grayscale image as JPEG
-    image.save(mask_path, 'JPEG', quality=95)
+    # Save the grayscale image as JPEG with 98% quality
+    image.save(mask_path, 'JPEG', quality=98)
     
     return jsonify({'message': 'Mask saved successfully'})
 
