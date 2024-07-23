@@ -1,4 +1,4 @@
-# Basic annotation web app
+# Basic Image Annotation Web App
 
 This is an annotation app for x-ray images. The masks identify teeth as green and it may be edited using a brush and eraser.
 
@@ -16,7 +16,7 @@ This is an annotation app for x-ray images. The masks identify teeth as green an
     - Tool toggle (brush/sponge): Toggle between drawing and erasing
     - Brush size (slider): Adjust the current brush size for both drawing and erasing
 
-[screenshot of drawing tool](screenshot.png)
+![screenshot of drawing tool](screenshot.png)
 
 
 ## Functionality
