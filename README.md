@@ -1,4 +1,4 @@
-# Basic annotation web app
+# Basic Image Annotation Web App
 
 This is an annotation app for x-ray images. The masks identify teeth as green and it may be edited using a brush and eraser.
 
