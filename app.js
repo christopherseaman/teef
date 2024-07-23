@@ -209,7 +209,17 @@ document.addEventListener('DOMContentLoaded', () => {
         BRUSH_SIZE = event.target.value;
         brushSizeValue.textContent = BRUSH_SIZE;
     });
+
+    document.addEventListener('keydown', handleKeyNavigation);
 });
+
+function handleKeyNavigation(event) {
+    if (event.key === 'ArrowLeft') {
+        navigateImage('prev');
+    } else if (event.key === 'ArrowRight') {
+        navigateImage('next');
+    }
+}
 
 function navigateImage(direction) {
     saveMask(); // Save current mask before navigating
