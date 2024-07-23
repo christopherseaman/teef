@@ -27,7 +27,9 @@ function loadImagePair(img) {
     image.onload = function() {
         imageCanvas.width = maskCanvas.width = overlayCanvas.width = image.width;
         imageCanvas.height = maskCanvas.height = overlayCanvas.height = image.height;
-        
+    
+        singleChannelMask = null;
+
         ctx.drawImage(image, 0, 0);
         loadMask(maskUrl);
     };
@@ -46,8 +48,9 @@ function loadMask(maskUrl) {
         singleChannelMask = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
         applyMaskToOverlay();
     };
-    maskImg.src = maskUrl;
+    maskImg.src = `${maskUrl}?t=${new Date().getTime()}`; // Add cache-busting parameter
 }
+
 
 
 function applyMaskToOverlay() {
@@ -142,22 +145,31 @@ function clearMask() {
 }
 
 function saveMask() {
-    maskCtx.putImageData(singleChannelMask, 0, 0);
-    const maskData = maskCanvas.toDataURL('image/jpeg', 0.98);
-    fetch('/save_mask', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            image: maskData,
-            maskFilename: currentMaskUrl.split('/').pop()
-        }),
-    })
-    .then(response => response.json())
-    .then(data => console.log(data.message))
-    .catch((error) => console.error('Error:', error));
+    return new Promise((resolve, reject) => {
+        maskCtx.putImageData(singleChannelMask, 0, 0);
+        const maskData = maskCanvas.toDataURL('image/jpeg', 0.98);
+        fetch('/save_mask', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                image: maskData,
+                maskFilename: currentMaskUrl.split('/').pop()
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log(data.message);
+            resolve();
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+            reject(error);
+        });
+    });
 }
+
 
 function toggleTool() {
     tool = tool === 'brush' ? 'eraser' : 'brush';
@@ -179,13 +191,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadImagePair(data.filename);
                 updateUrl(data.filename);
             });
+    }
+
     const brushSizeSlider = document.getElementById('brushSizeSlider');
     const brushSizeValue = document.getElementById('brushSizeValue');
+    brushSizeSlider.min = MIN_BRUSH;
+    brushSizeSlider.max = MAX_BRUSH;
+    brushSizeSlider.value = BRUSH_SIZE;
+    brushSizeValue.textContent = BRUSH_SIZE;
+
     brushSizeSlider.addEventListener('input', (event) => {
         BRUSH_SIZE = event.target.value;
         brushSizeValue.textContent = BRUSH_SIZE;
     });
-    }
 
     overlayCanvas.addEventListener('mousedown', startDrawing);
     overlayCanvas.addEventListener('mousemove', draw);
@@ -197,22 +215,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('prev').addEventListener('click', () => navigateImage('prev'));
     document.getElementById('next').addEventListener('click', () => navigateImage('next'));
 
-
-    const brushSizeSlider = document.getElementById('brushSizeSlider');
-    const brushSizeValue = document.getElementById('brushSizeValue');
-    brushSizeSlider.min = MIN_BRUSH;
-    brushSizeSlider.max = MAX_BRUSH;
-    brushSizeSlider.value = BRUSH_SIZE;
-    brushSizeValue.textContent = BRUSH_SIZE;
-    
-    brushSizeSlider.addEventListener('input', (event) => {
-        BRUSH_SIZE = event.target.value;
-        brushSizeValue.textContent = BRUSH_SIZE;
-    });
-
     document.addEventListener('keydown', handleKeyNavigation);
-});
 
+    // Add event listener for showing brush outline
+    overlayCanvas.addEventListener('mousemove', drawBrushOutline);
+    overlayCanvas.addEventListener('mouseleave', hideBrushOutline);
+});
 function handleKeyNavigation(event) {
     if (event.key === 'ArrowLeft') {
         navigateImage('prev');
@@ -234,4 +242,26 @@ function navigateImage(direction) {
 function updateUrl(img) {
     history.pushState(null, '', `?img=${img}`);
     document.getElementById('title').textContent = img;
+}
+
+function hideBrushOutline() {
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    applyMaskToOverlay();
+}
+
+function drawBrushOutline(event) {
+    if (isDrawing) return; // Do not draw outline while drawing
+
+    const pos = getMousePos(overlayCanvas, event);
+
+    // Clear the previous overlay and redraw the mask
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    applyMaskToOverlay();
+
+    // Draw brush outline
+    overlayCtx.beginPath();
+    overlayCtx.arc(pos.x, pos.y, BRUSH_SIZE, 0, Math.PI * 2);
+    overlayCtx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
+    overlayCtx.lineWidth = 2;
+    overlayCtx.stroke();
 }
