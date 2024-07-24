@@ -4,69 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>X-ray Mask Editor</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            background-color: #f0f0f0;
-        }
-        .editor-container {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        .canvas-container {
-            position: relative;
-        }
-        #xrayCanvas, #maskCanvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            border: 1px solid #000;
-        }
-        .controls { 
-            margin-top: 10px; 
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            width: 512px; /* Match canvas width */
-            justify-content: space-between;
-        }
-        .center-controls {
-            display: flex;
-            gap: 10px;
-        }
-        button { 
-            font-size: 24px;
-            padding: 10px 15px;
-            cursor: pointer;
-            background-color: #f8f8f8;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-        button:hover {
-            background-color: #e8e8e8;
-        }
-        .arrow-btn {
-            font-size: 36px;
-            background: none;
-            border: none;
-        }
-        .slider-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        .slider-label {
-            font-size: 18px;
-        }
-        .slider {
-            width: 200px;
-        }
-    </style>
+    <link rel="stylesheet" href="static/styles.css">
 </head>
 <body>
     <h1 id="title">X-ray Mask Editor</h1>
@@ -91,6 +29,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="static/app.js"></script>
 </body>
 </html>

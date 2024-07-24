@@ -44,10 +44,9 @@ def get_image_pair():
         'current_index': current_index 
     })
 
-@app.route('/app.js')
-def serve_app_js():
-    # send the app.js file
-    return send_from_directory('', 'app.js')
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
 
 @app.route('/image/<path:filename>')
 def serve_image(filename):
