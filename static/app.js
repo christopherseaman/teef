@@ -17,6 +17,12 @@ let lastY = 0;
 let tool = 'brush';
 let singleChannelMask;
 
+window.addEventListener('resize', () => {
+    if (currentImageUrl) {
+        loadImagePair(currentImageUrl.split('/').pop());
+    }
+});
+
 function loadImagePair(img) {
     const imageUrl = `/image/images/${img}`;
     const maskUrl = `/image/masks/${img}`;
@@ -25,43 +31,59 @@ function loadImagePair(img) {
 
     const image = new Image();
     image.onload = function() {
+        const container = document.querySelector('.canvas-container');
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        const imageAspectRatio = image.width / image.height;
+        const containerAspectRatio = containerWidth / containerHeight;
+
+        let canvasWidth, canvasHeight;
+        if (imageAspectRatio > containerAspectRatio) {
+            canvasWidth = containerWidth;
+            canvasHeight = containerWidth / imageAspectRatio;
+        } else {
+            canvasHeight = containerHeight;
+            canvasWidth = containerHeight * imageAspectRatio;
+        }
+
+        // Set the actual canvas size to the image dimensions
         imageCanvas.width = maskCanvas.width = overlayCanvas.width = image.width;
         imageCanvas.height = maskCanvas.height = overlayCanvas.height = image.height;
-    
+
+        // Set the display size of canvases
+        const canvases = [imageCanvas, maskCanvas, overlayCanvas];
+        canvases.forEach(canvas => {
+            canvas.style.width = `${canvasWidth}px`;
+            canvas.style.height = `${canvasHeight}px`;
+        });
+
         singleChannelMask = null;
 
-        ctx.drawImage(image, 0, 0);
+        ctx.drawImage(image, 0, 0, image.width, image.height);
         loadMask(maskUrl);
     };
     image.src = imageUrl;
 }
-
 function loadMask(maskUrl) {
     const maskImg = new Image();
     maskImg.onload = function() {
-        maskCanvas.width = imageCanvas.width; // Ensure mask canvas matches image dimensions
-        maskCanvas.height = imageCanvas.height; // Ensure mask canvas matches image dimensions
-        maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height); // Clear previous mask
-
-        // Draw the mask image stretched to fit the canvas
+        maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
         maskCtx.drawImage(maskImg, 0, 0, maskCanvas.width, maskCanvas.height);
         singleChannelMask = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
         applyMaskToOverlay();
     };
-    maskImg.src = `${maskUrl}?t=${new Date().getTime()}`; // Add cache-busting parameter
+    maskImg.src = `${maskUrl}?t=${new Date().getTime()}`;
 }
-
-
 
 function applyMaskToOverlay() {
     const overlayImageData = overlayCtx.createImageData(overlayCanvas.width, overlayCanvas.height);
     
     for (let i = 0; i < singleChannelMask.data.length; i += 4) {
-        const gray = singleChannelMask.data[i]; // Grayscale value
-        overlayImageData.data[i] = 0; // Red channel
-        overlayImageData.data[i + 1] = 255; // Green channel
-        overlayImageData.data[i + 2] = 0; // Blue channel
-        overlayImageData.data[i + 3] = Math.round(gray * MAX_OPACITY); // Alpha channel
+        const gray = singleChannelMask.data[i];
+        overlayImageData.data[i] = 0; // Red
+        overlayImageData.data[i + 1] = 255; // Green
+        overlayImageData.data[i + 2] = 0; // Blue
+        overlayImageData.data[i + 3] = Math.round(gray * MAX_OPACITY); // Alpha
     }
 
     overlayCtx.putImageData(overlayImageData, 0, 0);
@@ -107,6 +129,7 @@ function getMousePos(canvas, evt) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
+
     return {
         x: Math.floor((evt.clientX - rect.left) * scaleX),
         y: Math.floor((evt.clientY - rect.top) * scaleY)
