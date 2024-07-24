@@ -5,9 +5,9 @@ const overlayCanvas = document.getElementById('overlayCanvas');
 const ctx = imageCanvas.getContext('2d');
 const maskCtx = maskCanvas.getContext('2d');
 const overlayCtx = overlayCanvas.getContext('2d');
-let BRUSH_SIZE = 5;
-const MIN_BRUSH = 2;
-const MAX_BRUSH = 25;
+let BRUSH_SIZE = 10;
+let MIN_BRUSH = 2;
+let MAX_BRUSH = 30;
 
 let currentImageUrl = '';
 let currentMaskUrl = '';
@@ -17,11 +17,31 @@ let lastY = 0;
 let tool = 'brush';
 let singleChannelMask;
 
-window.addEventListener('resize', () => {
-    if (currentImageUrl) {
-        loadImagePair(currentImageUrl.split('/').pop());
+window.addEventListener('resize', adjustCanvasSize);
+
+function adjustCanvasSize() {
+    const container = document.querySelector('.canvas-container');
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const imageAspectRatio = imageCanvas.width / imageCanvas.height;
+    const containerAspectRatio = containerWidth / containerHeight;
+
+    let canvasWidth, canvasHeight;
+    if (imageAspectRatio > containerAspectRatio) {
+        canvasWidth = containerWidth;
+        canvasHeight = containerWidth / imageAspectRatio;
+    } else {
+        canvasHeight = containerHeight;
+        canvasWidth = containerHeight * imageAspectRatio;
     }
-});
+
+    // Update the display size of canvases
+    [imageCanvas, maskCanvas, overlayCanvas].forEach(canvas => {
+        canvas.style.width = `${canvasWidth}px`;
+        canvas.style.height = `${canvasHeight}px`;
+    });
+}
+
 
 function loadImagePair(img) {
     const imageUrl = `/image/images/${img}`;
@@ -31,39 +51,19 @@ function loadImagePair(img) {
 
     const image = new Image();
     image.onload = function() {
-        const container = document.querySelector('.canvas-container');
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-        const imageAspectRatio = image.width / image.height;
-        const containerAspectRatio = containerWidth / containerHeight;
-
-        let canvasWidth, canvasHeight;
-        if (imageAspectRatio > containerAspectRatio) {
-            canvasWidth = containerWidth;
-            canvasHeight = containerWidth / imageAspectRatio;
-        } else {
-            canvasHeight = containerHeight;
-            canvasWidth = containerHeight * imageAspectRatio;
-        }
-
         // Set the actual canvas size to the image dimensions
         imageCanvas.width = maskCanvas.width = overlayCanvas.width = image.width;
         imageCanvas.height = maskCanvas.height = overlayCanvas.height = image.height;
 
-        // Set the display size of canvases
-        const canvases = [imageCanvas, maskCanvas, overlayCanvas];
-        canvases.forEach(canvas => {
-            canvas.style.width = `${canvasWidth}px`;
-            canvas.style.height = `${canvasHeight}px`;
-        });
-
-        singleChannelMask = null;
-
         ctx.drawImage(image, 0, 0, image.width, image.height);
         loadMask(maskUrl);
+
+        // Adjust canvas size after loading
+        adjustCanvasSize();
     };
     image.src = imageUrl;
 }
+
 function loadMask(maskUrl) {
     const maskImg = new Image();
     maskImg.onload = function() {
@@ -129,14 +129,30 @@ function getMousePos(canvas, evt) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
+    let clientX, clientY;
 
+    if (evt.touches && evt.touches[0]) {
+        // Touch event
+        clientX = evt.touches[0].clientX;
+        clientY = evt.touches[0].clientY;
+    } else {
+        // Mouse event
+        clientX = evt.clientX;
+        clientY = evt.clientY;
+    }
+
+    // return {
+    //     x: Math.floor((evt.clientX - rect.left) * scaleX),
+    //     y: Math.floor((evt.clientY - rect.top) * scaleY)
+    // };
     return {
-        x: Math.floor((evt.clientX - rect.left) * scaleX),
-        y: Math.floor((evt.clientY - rect.top) * scaleY)
+        x: Math.floor((clientX - rect.left) * scaleX),
+        y: Math.floor((clientY - rect.top) * scaleY)
     };
 }
 
 function startDrawing(e) {
+    e.preventDefault();
     isDrawing = true;
     const pos = getMousePos(overlayCanvas, e);
     lastX = pos.x;
@@ -146,6 +162,7 @@ function startDrawing(e) {
 
 function draw(e) {
     if (!isDrawing) return;
+    e.preventDefault();
     
     const pos = getMousePos(overlayCanvas, e);
     drawLine(lastX, lastY, pos.x, pos.y);
@@ -228,10 +245,18 @@ document.addEventListener('DOMContentLoaded', () => {
         brushSizeValue.textContent = BRUSH_SIZE;
     });
 
+    // Mouse event listeners
     overlayCanvas.addEventListener('mousedown', startDrawing);
     overlayCanvas.addEventListener('mousemove', draw);
     overlayCanvas.addEventListener('mouseup', stopDrawing);
     overlayCanvas.addEventListener('mouseout', stopDrawing);
+
+    // Touch event listeners
+    overlayCanvas.addEventListener('touchstart', startDrawing);
+    overlayCanvas.addEventListener('touchmove', draw);
+    overlayCanvas.addEventListener('touchend', stopDrawing);
+    overlayCanvas.addEventListener('touchcancel', stopDrawing);
+
 
     document.getElementById('clear').addEventListener('click', clearMask);
     document.getElementById('toolToggle').addEventListener('click', toggleTool);
@@ -243,6 +268,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add event listener for showing brush outline
     overlayCanvas.addEventListener('mousemove', drawBrushOutline);
     overlayCanvas.addEventListener('mouseleave', hideBrushOutline);
+    overlayCanvas.addEventListener('touchmove', drawBrushOutline);
+    overlayCanvas.addEventListener('touchend', hideBrushOutline);
 });
 function handleKeyNavigation(event) {
     if (event.key === 'ArrowLeft') {
