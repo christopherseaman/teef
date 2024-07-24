@@ -17,30 +17,21 @@ let lastY = 0;
 let tool = 'brush';
 let singleChannelMask;
 
-window.addEventListener('resize', adjustCanvasSize);
-
 function adjustCanvasSize() {
     const container = document.querySelector('.canvas-container');
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    const imageAspectRatio = imageCanvas.width / imageCanvas.height;
-    const containerAspectRatio = containerWidth / containerHeight;
-
-    let canvasWidth, canvasHeight;
-    if (imageAspectRatio > containerAspectRatio) {
-        canvasWidth = containerWidth;
-        canvasHeight = containerWidth / imageAspectRatio;
-    } else {
-        canvasHeight = containerHeight;
-        canvasWidth = containerHeight * imageAspectRatio;
-    }
-
-    // Update the display size of canvases
-    [imageCanvas, maskCanvas, overlayCanvas].forEach(canvas => {
-        canvas.style.width = `${canvasWidth}px`;
-        canvas.style.height = `${canvasHeight}px`;
+    const canvases = [imageCanvas, maskCanvas, overlayCanvas];
+    
+    canvases.forEach(canvas => {
+        const scaleX = container.clientWidth / canvas.width;
+        const scaleY = container.clientHeight / canvas.height;
+        const scale = Math.min(scaleX, scaleY);
+        
+        canvas.style.width = `${canvas.width * scale}px`;
+        canvas.style.height = `${canvas.height * scale}px`;
     });
 }
+
+window.addEventListener('resize', adjustCanvasSize);
 
 
 function loadImagePair(img) {

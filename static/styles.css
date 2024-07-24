@@ -29,17 +29,20 @@ body {
 .canvas-container {
     position: relative;
     width: 100%;
-    max-width: 100%;
-    height: 0;
-    padding-top: 50%; /* Adjust this value to match your canvas aspect ratio */
+    height: 100%;
     overflow: hidden;
+    padding-top: 50%; /* Adjust this value to match your canvas aspect ratio */
 }
 
 #imageCanvas, #maskCanvas, #overlayCanvas {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
     object-fit: contain;
 }
 
