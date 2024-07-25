@@ -6,8 +6,9 @@ const ctx = imageCanvas.getContext('2d');
 const maskCtx = maskCanvas.getContext('2d');
 const overlayCtx = overlayCanvas.getContext('2d');
 let BRUSH_SIZE = 10;
+let BRUSH_INCREMENT = 5;
 let MIN_BRUSH = 2;
-let MAX_BRUSH = 30;
+let MAX_BRUSH = 50;
 
 let currentImageUrl = '';
 let currentMaskUrl = '';
@@ -16,8 +17,7 @@ let lastX = 0;
 let lastY = 0;
 let tool = 'brush';
 let singleChannelMask;
-
-window.addEventListener('resize', adjustCanvasSize);
+let brushPreview, brushSizeDisplay, brushSizeSlider, brushPreviewTimeout;
 
 function adjustCanvasSize() {
     const container = document.querySelector('.canvas-container');
@@ -47,6 +47,12 @@ function loadImagePair(img) {
         imageCanvas.width = maskCanvas.width = overlayCanvas.width = image.width;
         imageCanvas.height = maskCanvas.height = overlayCanvas.height = image.height;
 
+        // Set the canvas container height based on the image aspect ratio
+        const container = document.querySelector('.canvas-container');
+        const containerWidth = container.clientWidth;
+        const scale = containerWidth / image.width;
+        container.style.height = `${image.height * scale}px`;
+
         ctx.drawImage(image, 0, 0, image.width, image.height);
         loadMask(maskUrl);
 
@@ -54,6 +60,27 @@ function loadImagePair(img) {
         adjustCanvasSize();
     };
     image.src = imageUrl;
+}
+
+function adjustCanvasSize() {
+    const container = document.querySelector('.canvas-container');
+    const canvases = [imageCanvas, maskCanvas, overlayCanvas];
+    
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    
+    canvases.forEach(canvas => {
+        const scaleX = containerWidth / canvas.width;
+        const scaleY = containerHeight / canvas.height;
+        const scale = Math.min(scaleX, scaleY);
+        
+        canvas.style.width = `${canvas.width * scale}px`;
+        canvas.style.height = `${canvas.height * scale}px`;
+        
+        // Center the canvas within the container
+        canvas.style.left = `${(containerWidth - canvas.width * scale) / 2}px`;
+        canvas.style.top = `${(containerHeight - canvas.height * scale) / 2}px`;
+    });
 }
 
 function loadMask(maskUrl) {
@@ -209,63 +236,6 @@ function toggleTool() {
 }
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const img = urlParams.get('img');
-
-    if (img) {
-        loadImagePair(img);
-        updateUrl(img);
-    } else {
-        fetch('/get_image_pair')
-            .then(response => response.json())
-            .then(data => {
-                loadImagePair(data.filename);
-                updateUrl(data.filename);
-            });
-    }
-
-    const brushSizeSlider = document.getElementById('brushSizeSlider');
-    const brushSizeValue = document.getElementById('brushSizeValue');
-    brushSizeSlider.min = MIN_BRUSH;
-    brushSizeSlider.max = MAX_BRUSH;
-    brushSizeSlider.value = BRUSH_SIZE;
-    brushSizeValue.textContent = BRUSH_SIZE;
-
-    brushSizeSlider.addEventListener('input', (event) => {
-        BRUSH_SIZE = event.target.value;
-        brushSizeValue.textContent = BRUSH_SIZE;
-    });
-
-    // Mouse event listeners
-    overlayCanvas.addEventListener('mousedown', startDrawing);
-    overlayCanvas.addEventListener('mousemove', draw);
-    overlayCanvas.addEventListener('mouseup', stopDrawing);
-    overlayCanvas.addEventListener('mouseout', stopDrawing);
-
-    // Touch event listeners
-    overlayCanvas.addEventListener('touchstart', startDrawing);
-    overlayCanvas.addEventListener('touchmove', draw);
-    overlayCanvas.addEventListener('touchend', stopDrawing);
-    overlayCanvas.addEventListener('touchcancel', stopDrawing);
-
-
-    document.getElementById('clear').addEventListener('click', clearMask);
-    document.getElementById('toolToggle').addEventListener('click', toggleTool);
-    document.getElementById('prev').addEventListener('click', () => navigateImage('prev'));
-    document.getElementById('next').addEventListener('click', () => navigateImage('next'));
-
-    document.addEventListener('keydown', handleKeyNavigation);
-
-    // Add event listener for showing brush outline
-    overlayCanvas.addEventListener('mousemove', drawBrushOutline);
-    overlayCanvas.addEventListener('mouseleave', hideBrushOutline);
-    overlayCanvas.addEventListener('touchmove', drawBrushOutline);
-    overlayCanvas.addEventListener('touchend', hideBrushOutline);
-
-    // Listen for brush changes
-    
-});
 function handleKeyNavigation(event) {
     if (event.key === 'ArrowLeft') {
         navigateImage('prev');
@@ -274,14 +244,12 @@ function handleKeyNavigation(event) {
     } else if (event.key === 's') {
         saveMask();
         showToast('Mask saved', 'success');
-    } else if (event.key === ',') {  // Changed from '<' to ','
+    } else if (event.key === ',') {
         console.log('Decrease brush size');
-        BRUSH_SIZE = Math.max(MIN_BRUSH, BRUSH_SIZE - 5);
-        updateBrushSize();
-    } else if (event.key === '.') {  // Changed from '>' to '.'
+        updateBrushSize(BRUSH_SIZE - BRUSH_INCREMENT);
+    } else if (event.key === '.') {
         console.log('Increase brush size');
-        BRUSH_SIZE = Math.min(MAX_BRUSH, BRUSH_SIZE + 5);
-        updateBrushSize();
+        updateBrushSize(BRUSH_SIZE + BRUSH_INCREMENT);
     } else if (event.key === ' ') {
         event.preventDefault();  // Prevent scrolling
         toggleTool();
@@ -291,10 +259,29 @@ function handleKeyNavigation(event) {
     }
 }
 
-function updateBrushSize() {
-    document.getElementById('brushSizeSlider').value = BRUSH_SIZE;
-    document.getElementById('brushSizeValue').textContent = BRUSH_SIZE;
+function updateBrushSize(newSize) {
+    newSize = Math.max(MIN_BRUSH, Math.min(MAX_BRUSH, newSize));
+    BRUSH_SIZE = newSize;
+    brushSizeSlider.value = newSize;
+    updateBrushPreview(newSize);
 }
+
+function updateBrushPreview(size) {
+    brushPreview.style.width = `${size}px`;
+    brushPreview.style.height = `${size}px`;
+    brushPreview.style.display = 'block';
+    
+    clearTimeout(brushPreviewTimeout);
+    brushPreviewTimeout = setTimeout(() => {
+        brushPreview.style.display = 'none';
+    }, 1000);
+}
+
+function hideBrushPreview() {
+    clearTimeout(brushPreviewTimeout);
+    brushPreview.style.display = 'none';
+}
+
 
 function downloadAll() {
     saveMask().then(() => {
@@ -322,16 +309,16 @@ function showToast(message, type = 'info', duration = 300) {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
-
+    
     const toastContainer = document.getElementById('toast');
     toastContainer.innerHTML = ''; // Clear any existing toasts
     toastContainer.appendChild(toast);
-
+    
     // Trigger reflow
     toast.offsetHeight;
-
+    
     toast.classList.add('show');
-
+    
     setTimeout(() => {
         toast.classList.remove('show');
         setTimeout(() => {
@@ -343,11 +330,11 @@ function showToast(message, type = 'info', duration = 300) {
 function navigateImage(direction) {
     saveMask(); // Save current mask before navigating
     fetch(`/get_image_pair?img=${currentImageUrl.split('/').pop()}&direction=${direction}`)
-        .then(response => response.json())
-        .then(data => {
-            loadImagePair(data.filename);
-            updateUrl(data.filename)
-        });
+    .then(response => response.json())
+    .then(data => {
+        loadImagePair(data.filename);
+        updateUrl(data.filename)
+    });
 }
 
 function updateUrl(img) {
@@ -362,11 +349,11 @@ function hideBrushOutline() {
 
 function drawBrushOutline(event) {
     const pos = getMousePos(overlayCanvas, event);
-
+    
     // Clear the previous overlay and redraw the mask
     overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
     applyMaskToOverlay();
-
+    
     // Draw brush outline
     overlayCtx.beginPath();
     overlayCtx.arc(pos.x, pos.y, BRUSH_SIZE, 0, Math.PI * 2);
@@ -375,3 +362,114 @@ function drawBrushOutline(event) {
     overlayCtx.lineWidth = 2;
     overlayCtx.stroke();
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const img = urlParams.get('img');
+
+    if (img) {
+        loadImagePair(img);
+        updateUrl(img);
+    } else {
+        fetch('/get_image_pair')
+            .then(response => response.json())
+            .then(data => {
+                loadImagePair(data.filename);
+                updateUrl(data.filename);
+            });
+    }
+
+    window.addEventListener('resize', () => {
+        const container = document.querySelector('.canvas-container');
+        const containerWidth = container.clientWidth;
+        const imageAspectRatio = imageCanvas.width / imageCanvas.height;
+        container.style.height = `${containerWidth / imageAspectRatio}px`;
+        adjustCanvasSize();
+    });
+
+    const toolToggle = document.getElementById('toolToggle');
+    toolToggle.addEventListener('click', () => {
+        tool = tool === 'brush' ? 'eraser' : 'brush';
+        toolToggle.textContent = tool === 'brush' ? '🖌️' : '🧽';
+    });
+
+    // Mouse event listeners
+    overlayCanvas.addEventListener('mousedown', startDrawing);
+    overlayCanvas.addEventListener('mousemove', draw);
+    overlayCanvas.addEventListener('mouseup', stopDrawing);
+    overlayCanvas.addEventListener('mouseout', stopDrawing);
+
+    // Touch event listeners
+    overlayCanvas.addEventListener('touchstart', startDrawing);
+    overlayCanvas.addEventListener('touchmove', draw);
+    overlayCanvas.addEventListener('touchend', stopDrawing);
+    overlayCanvas.addEventListener('touchcancel', stopDrawing);
+
+
+    document.getElementById('clear').addEventListener('click', clearMask);
+    document.getElementById('prev').addEventListener('click', () => navigateImage('prev'));
+    document.getElementById('next').addEventListener('click', () => navigateImage('next'));
+
+    document.addEventListener('keydown', handleKeyNavigation);
+
+    // Add event listener for showing brush outline
+    overlayCanvas.addEventListener('mousemove', drawBrushOutline);
+    overlayCanvas.addEventListener('mouseleave', hideBrushOutline);
+    overlayCanvas.addEventListener('touchmove', drawBrushOutline);
+    overlayCanvas.addEventListener('touchend', hideBrushOutline);
+
+    // Listen for brush changes
+    brushSizeSlider = document.getElementById('brushSizeSlider');
+    const decreaseBrush = document.getElementById('decreaseBrush');
+    const increaseBrush = document.getElementById('increaseBrush');
+    const brushControls = document.querySelector('.brush-controls');
+    
+    brushSizeSlider.min = MIN_BRUSH;
+    brushSizeSlider.max = MAX_BRUSH;
+    brushSizeSlider.value = BRUSH_SIZE;
+
+    // Create brush preview element
+    brushPreview = document.getElementById('brushPreview');
+    // brushPreview = document.createElement('div');
+    // brushPreview.className = 'brush-preview';
+    // brushControls.appendChild(brushPreview);
+
+    // Create brush size display element
+    brushSizeDisplay = document.createElement('div');
+    // brushSizeDisplay.className = 'brush-size-display';
+    // brushControls.appendChild(brushSizeDisplay);
+
+    brushSizeSlider.addEventListener('input', (event) => {
+        updateBrushSize(parseInt(event.target.value));
+    });
+
+    decreaseBrush.addEventListener('click', () => {
+        updateBrushSize(BRUSH_SIZE - BRUSH_INCREMENT);
+    });
+
+    increaseBrush.addEventListener('click', () => {
+        updateBrushSize(BRUSH_SIZE + BRUSH_INCREMENT);
+    });
+
+    // Show preview while sliding
+    brushSizeSlider.addEventListener('mousedown', () => {
+        updateBrushPreview(BRUSH_SIZE);
+    });
+
+    brushSizeSlider.addEventListener('mouseup', () => {
+        setTimeout(() => {
+            brushPreview.style.display = 'none';
+        }, 1000);
+    });
+
+    // For touch devices
+    brushSizeSlider.addEventListener('touchstart', () => {
+        updateBrushPreview(BRUSH_SIZE);
+    });
+
+    brushSizeSlider.addEventListener('touchend', () => {
+        setTimeout(() => {
+            brushPreview.style.display = 'none';
+        }, 1000);
+    });
+});

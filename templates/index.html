@@ -22,12 +22,16 @@
         <div class="controls">
             <button id="clear">❌</button>
             <div class="center-controls">
-                <div class="slider-container">
-                    <span class="slider-label">Size: </span>
-                    <input type="range" id="brushSizeSlider" class="slider" min="1" max="25" value="5">
-                    <span id="brushSizeValue">5</span>
+                <div class="brush-controls">
+                    <div class="brush-size-controls">
+                        <div id="brushPreview" class="brush-preview"></div>
+                      <button id="decreaseBrush" class="brush-btn">➖</button>
+                      <input type="range" id="brushSizeSlider" class="slider" min="2" max="50" value="10">
+                      <button id="increaseBrush" class="brush-btn">➕</button>
+                    </div>
+                    <div class="spacer"></div>
+                    <button id="toolToggle">🖌️</button>
                 </div>
-                <button id="toolToggle">🖌️</button>
             </div>
             <div>
                 <!-- <button id="zoom">🔍</button> -->
