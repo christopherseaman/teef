@@ -3,6 +3,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
+    text-align: center;
     background-color: #f0f0f0;
     margin: 0;
     padding: 0;
@@ -176,6 +177,8 @@ button:hover {
 h1 {
     font-size: 18pt;
     text-align: center;
+    margin: 0;
+    width: 100vh;
 }
 
 @media (max-width: 600px) {
@@ -227,4 +230,5 @@ h1 {
 
 .toast.warning {
     background-color: rgba(255, 152, 0, 0.9);
+}
 }
