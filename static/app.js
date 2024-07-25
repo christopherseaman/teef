@@ -262,13 +262,82 @@ document.addEventListener('DOMContentLoaded', () => {
     overlayCanvas.addEventListener('mouseleave', hideBrushOutline);
     overlayCanvas.addEventListener('touchmove', drawBrushOutline);
     overlayCanvas.addEventListener('touchend', hideBrushOutline);
+
+    // Listen for brush changes
+    
 });
 function handleKeyNavigation(event) {
     if (event.key === 'ArrowLeft') {
         navigateImage('prev');
     } else if (event.key === 'ArrowRight') {
         navigateImage('next');
+    } else if (event.key === 's') {
+        saveMask();
+        showToast('Mask saved', 'success');
+    } else if (event.key === ',') {  // Changed from '<' to ','
+        console.log('Decrease brush size');
+        BRUSH_SIZE = Math.max(MIN_BRUSH, BRUSH_SIZE - 5);
+        updateBrushSize();
+    } else if (event.key === '.') {  // Changed from '>' to '.'
+        console.log('Increase brush size');
+        BRUSH_SIZE = Math.min(MAX_BRUSH, BRUSH_SIZE + 5);
+        updateBrushSize();
+    } else if (event.key === ' ') {
+        event.preventDefault();  // Prevent scrolling
+        toggleTool();
+    } else if (event.key === 'd') {
+        event.preventDefault();  // Prevent browser's default 'bookmark' action
+        downloadAll();
     }
+}
+
+function updateBrushSize() {
+    document.getElementById('brushSizeSlider').value = BRUSH_SIZE;
+    document.getElementById('brushSizeValue').textContent = BRUSH_SIZE;
+}
+
+function downloadAll() {
+    saveMask().then(() => {
+        showToast('Downloading all masks...', 'info', 5000);
+        fetch('/download_all', {
+            method: 'POST'  // Changed from GET to POST
+        })
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            timestamp = new Date().toISOString().replace(/:/g, '-');
+            a.download = `teef_${timestamp}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        })
+        .catch(error => console.error('Error downloading:', error));
+    });
+}
+
+function showToast(message, type = 'info', duration = 300) {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+
+    const toastContainer = document.getElementById('toast');
+    toastContainer.innerHTML = ''; // Clear any existing toasts
+    toastContainer.appendChild(toast);
+
+    // Trigger reflow
+    toast.offsetHeight;
+
+    toast.classList.add('show');
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            toastContainer.removeChild(toast);
+        }, 300);
+    }, duration);
 }
 
 function navigateImage(direction) {

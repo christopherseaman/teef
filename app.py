@@ -1,9 +1,11 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, after_this_request, send_file
 import os
 from PIL import Image
 import base64
 import io
+import tarfile
 import numpy as np
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -53,6 +55,39 @@ def serve_image(filename):
     directory = os.path.dirname(filename)
     file = os.path.basename(filename)
     return send_from_directory(directory, file)
+
+# Download tarball of all images masks
+@app.route('/download_all', methods=['POST'])
+def download_all():
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    tarball_filename = f'teef-{timestamp}.tar.gz'
+    
+    # Create an in-memory file-like object
+    memory_file = io.BytesIO()
+    
+    # Create a tar archive
+    with tarfile.open(fileobj=memory_file, mode='w:gz') as tar:
+        # Add MASK_FOLDER to the archive
+        tar.add(MASK_FOLDER, arcname=os.path.basename(MASK_FOLDER))
+        # Add IMAGE_FOLDER to the archive
+        tar.add(IMAGE_FOLDER, arcname=os.path.basename(IMAGE_FOLDER))
+    
+    # Move the pointer to the beginning of the file
+    memory_file.seek(0)
+    
+    @after_this_request
+    def cleanup(response):
+        # This function will be called after the request is done
+        # You can add any cleanup code here if needed
+        return response
+    
+    return send_file(
+        memory_file,
+        as_attachment=True,
+        download_name=tarball_filename,
+        mimetype='application/gzip'
+    )
+
 
 @app.route('/save_mask', methods=['POST'])
 def save_mask():
