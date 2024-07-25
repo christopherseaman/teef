@@ -270,6 +270,8 @@ function updateBrushPreview(size) {
     brushPreview.style.width = `${size}px`;
     brushPreview.style.height = `${size}px`;
     brushPreview.style.display = 'block';
+    brushPreview.style.backgroundColor = tool === 'brush' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 0, 0, 0.3)';
+    brushPreview.style.borderColor = tool === 'brush' ? 'rgba(0, 255, 0, 0.6)' : 'rgba(255, 0, 0, 0.6)';
     
     clearTimeout(brushPreviewTimeout);
     brushPreviewTimeout = setTimeout(() => {
@@ -359,6 +361,7 @@ function drawBrushOutline(event) {
     overlayCtx.arc(pos.x, pos.y, BRUSH_SIZE, 0, Math.PI * 2);
     // Green outline for brush, red outline for eraser
     overlayCtx.strokeStyle = tool === 'brush' ? 'rgba(0, 255, 0, 0.6)' : 'rgba(255, 0, 0, 0.6)';
+    
     overlayCtx.lineWidth = 2;
     overlayCtx.stroke();
 }
