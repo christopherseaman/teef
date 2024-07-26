@@ -241,6 +241,8 @@ function handleKeyNavigation(event) {
         navigateImage('prev');
     } else if (event.key === 'ArrowRight') {
         navigateImage('next');
+    } else if (event.key === 'l') {
+        openTitleEdit();
     } else if (event.key === 's') {
         saveMask();
         showToast('Mask saved', 'success');
@@ -339,11 +341,6 @@ function navigateImage(direction) {
     });
 }
 
-function updateUrl(img) {
-    history.pushState(null, '', `?img=${img}`);
-    document.getElementById('title').textContent = img;
-}
-
 function hideBrushOutline() {
     overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
     applyMaskToOverlay();
@@ -364,6 +361,69 @@ function drawBrushOutline(event) {
     
     overlayCtx.lineWidth = 2;
     overlayCtx.stroke();
+}
+
+function initializeTitleEdit() {
+    const title = document.getElementById('title');
+    const titleEditContainer = document.querySelector('.title-edit-container');
+    const titleInput = document.getElementById('titleInput');
+    const titleConfirm = document.getElementById('titleConfirm');
+    const titleCancel = document.getElementById('titleCancel');
+
+    title.addEventListener('click', openTitleEdit);
+
+    titleConfirm.addEventListener('click', () => {
+        const newImg = titleInput.value.trim();
+        if (newImg) {
+            loadImagePair(newImg);
+            updateUrl(newImg);
+        }
+        closeTitleEdit();
+    });
+
+    titleCancel.addEventListener('click', closeTitleEdit);
+
+    titleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            titleConfirm.click();
+        } else if (e.key === 'Escape') {
+            titleCancel.click();
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'l') {
+            openTitleEdit(e);
+        }
+    });
+}
+
+function openTitleEdit(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    const title = document.getElementById('title');
+    const titleEditContainer = document.querySelector('.title-edit-container');
+    const titleInput = document.getElementById('titleInput');
+    title.style.display = 'none';
+    titleEditContainer.style.display = 'flex';
+    titleInput.value = title.textContent;
+    titleInput.focus();
+    document.removeEventListener('keydown', handleKeyNavigation);
+}
+
+function closeTitleEdit() {
+    const title = document.getElementById('title');
+    const titleEditContainer = document.querySelector('.title-edit-container');
+    title.style.display = 'block';
+    titleEditContainer.style.display = 'none';
+    document.addEventListener('keydown', handleKeyNavigation);
+}
+
+function updateUrl(img) {
+    history.pushState(null, '', `?img=${img}`);
+    document.getElementById('title').textContent = img;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -396,6 +456,10 @@ document.addEventListener('DOMContentLoaded', () => {
         toolToggle.textContent = tool === 'brush' ? '🖌️' : '🧽';
     });
 
+    // Keyboard event listeners
+    document.addEventListener('keydown', handleKeyNavigation);
+    initializeTitleEdit();
+
     // Mouse event listeners
     overlayCanvas.addEventListener('mousedown', startDrawing);
     overlayCanvas.addEventListener('mousemove', draw);
@@ -415,7 +479,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('save').addEventListener('click', saveMask);
     document.getElementById('reload').addEventListener('click', location.reload.bind(location));
 
-    document.addEventListener('keydown', handleKeyNavigation);
 
     // Add event listener for showing brush outline
     overlayCanvas.addEventListener('mousemove', drawBrushOutline);

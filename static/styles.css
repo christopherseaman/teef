@@ -1,5 +1,5 @@
 body {
-    font-family: 'Courier New', Courier, monospace;
+    font-family: sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -122,9 +122,45 @@ button:hover {
 }
 
 h1 {
+    font-size: 28pt;
+    text-align: center;
+    margin: 0 0 10px 0;
+    cursor: pointer;
+}
+
+.title-container {
+    height: 42pt;
+}
+
+.title-edit-container {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.title-input {
     font-size: 18pt;
     text-align: center;
-    margin: 0;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+.title-confirm,
+.title-cancel {
+    font-size: 18pt;
+    cursor: pointer;
+    background-color: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 5px 10px;
+}
+
+.title-confirm:hover,
+.title-cancel:hover {
+    background-color: #e8e8e8;
 }
 
 @media (max-width: 600px) {

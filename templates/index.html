@@ -12,7 +12,14 @@
 </head>
 <body>
     <div class="app-container">
-        <h1 id="title">teef</h1>
+        <div class="title-container">
+            <h1 id="title">teef</h1>
+            <div class="title-edit-container" style="display: none;">
+                <input type="text" id="titleInput" class="title-input">
+                <button id="titleConfirm" class="title-confirm"><i class="fas fa-check"></i></button>
+                <button id="titleCancel" class="title-cancel"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
         <div class="editor-container">
             <button id="prev"><i class="fas fa-arrow-left"></i></button>
             <div class="canvas-container">
