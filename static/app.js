@@ -413,6 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('prev').addEventListener('click', () => navigateImage('prev'));
     document.getElementById('next').addEventListener('click', () => navigateImage('next'));
     document.getElementById('save').addEventListener('click', saveMask);
+    document.getElementById('reload').addEventListener('click', location.reload.bind(location));
 
     document.addEventListener('keydown', handleKeyNavigation);
 
