@@ -229,20 +229,13 @@ function saveMask() {
     });
 }
 
-
-function toggleTool() {
-    tool = tool === 'brush' ? 'eraser' : 'brush';
-    document.getElementById('toolToggle').textContent = tool === 'brush' ? '🖌️' : '🧽';
-}
-
-// Initialize the application
 function handleKeyNavigation(event) {
     if (event.key === 'ArrowLeft') {
         navigateImage('prev');
     } else if (event.key === 'ArrowRight') {
         navigateImage('next');
     } else if (event.key === 'l') {
-        openTitleEdit();
+        openTitleEdit(event);
     } else if (event.key === 's') {
         saveMask();
         showToast('Mask saved', 'success');
@@ -254,10 +247,12 @@ function handleKeyNavigation(event) {
         updateBrushSize(BRUSH_SIZE + BRUSH_INCREMENT);
     } else if (event.key === ' ') {
         event.preventDefault();  // Prevent scrolling
-        toggleTool();
+        toolToggle.click();
     } else if (event.key === 'd') {
         event.preventDefault();  // Prevent browser's default 'bookmark' action
         downloadAll();
+    } else if (event.key === 'h') {
+        overlayToggle.click();
     }
 }
 
@@ -447,8 +442,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const toolToggle = document.getElementById('toolToggle');
     toolToggle.addEventListener('click', () => {
+        // Swap Font Awesome brush and eraser tools
+        // <button id="toolToggle"><i class="fas fa-paint-brush"></i></button>
         tool = tool === 'brush' ? 'eraser' : 'brush';
-        toolToggle.textContent = tool === 'brush' ? '🖌️' : '🧽';
+        const icon = tool === 'brush' ? 'fa-paint-brush' : 'fa-eraser';
+        toolToggle.innerHTML = `<i class="fas ${icon}"></i>`;
+    });
+
+    const overlayToggle = document.getElementById('overlayToggle');
+    overlayToggle.addEventListener('click', () => {
+        overlayCanvas.style.display = overlayCanvas.style.display === 'none' ? 'block' : 'none';
+        // Swap Font Awesome icon fa-eye and fa-eye-slash
+        // <button id="overlayToggle"><i class="fa fa-eye"></i></button>
+        const icon = overlayCanvas.style.display === 'none' ? 'fa-eye-slash' : 'fa-eye';
+        overlayToggle.innerHTML = `<i class="fa ${icon}"></i>`;
     });
 
     // Keyboard event listeners
