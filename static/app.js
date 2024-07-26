@@ -171,7 +171,6 @@ function getMousePos(canvas, evt) {
 }
 
 function startDrawing(e) {
-    e.preventDefault();
     isDrawing = true;
     const pos = getMousePos(overlayCanvas, e);
     lastX = pos.x;
@@ -181,7 +180,6 @@ function startDrawing(e) {
 
 function draw(e) {
     if (!isDrawing) return;
-    e.preventDefault();
     
     const pos = getMousePos(overlayCanvas, e);
     drawLine(lastX, lastY, pos.x, pos.y);
@@ -469,10 +467,10 @@ document.addEventListener('DOMContentLoaded', () => {
     overlayCanvas.addEventListener('mouseout', stopDrawing);
 
     // Touch event listeners
-    overlayCanvas.addEventListener('touchstart', startDrawing);
-    overlayCanvas.addEventListener('touchmove', draw);
-    overlayCanvas.addEventListener('touchend', stopDrawing);
-    overlayCanvas.addEventListener('touchcancel', stopDrawing);
+    overlayCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
+    overlayCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
+    overlayCanvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
+    overlayCanvas.addEventListener('touchcancel', (e) => { e.preventDefault(); stopDrawing(); });
 
 
     document.getElementById('clear').addEventListener('click', clearMask);
