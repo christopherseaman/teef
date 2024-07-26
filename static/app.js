@@ -378,6 +378,7 @@ function initializeTitleEdit() {
             loadImagePair(newImg);
             updateUrl(newImg);
         }
+        document.addEventListener('keydown', handleKeyNavigation);
         closeTitleEdit();
     });
 
@@ -388,12 +389,6 @@ function initializeTitleEdit() {
             titleConfirm.click();
         } else if (e.key === 'Escape') {
             titleCancel.click();
-        }
-    });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'l') {
-            openTitleEdit(e);
         }
     });
 }
