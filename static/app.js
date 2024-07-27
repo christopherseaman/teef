@@ -554,6 +554,7 @@ function navigateImage(direction) {
 }
 
 function hideBrushOutline() {
+    showBrushOutline = false;
     if (currentMaskState) {
         overlayCtx.putImageData(currentMaskState, 0, 0);
     } else {
@@ -690,8 +691,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add event listener for showing brush outline
     // overlayCanvas.addEventListener('mousemove', drawBrushOutline);
+    overlayCanvas.addEventListener('mouseenter', () => { showBrushOutline = true; });
     overlayCanvas.addEventListener('mouseleave', hideBrushOutline);
     // overlayCanvas.addEventListener('touchmove', drawBrushOutline);
+    overlayCanvas.addEventListener('touchstart', () => { showBrushOutline = true; });
     overlayCanvas.addEventListener('touchend', hideBrushOutline);
 
     // Listen for brush changes
