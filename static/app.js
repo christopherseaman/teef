@@ -1,10 +1,17 @@
-const MAX_OPACITY = 0.4;
+const MAX_OPACITY = 0.4; // 40% opacity
 const imageCanvas = document.getElementById('imageCanvas');
 const maskCanvas = document.getElementById('maskCanvas');
 const overlayCanvas = document.getElementById('overlayCanvas');
 const ctx = imageCanvas.getContext('2d', { willReadFrequently: true });
 const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
 const overlayCtx = overlayCanvas.getContext('2d', { willReadFrequently: true });
+const FRAME_DURATION = 1000 / 60; // Target 60 FPS
+let lastFrameTime = 0;
+let animationFrameId = null;
+let drawQueue = [];
+let isDrawing = false;
+let lastX, lastY;
+
 let BRUSH_SIZE = 10;
 let BRUSH_INCREMENT = 5;
 let MIN_BRUSH = 2;
@@ -12,12 +19,22 @@ let MAX_BRUSH = 50;
 
 let currentImageUrl = '';
 let currentMaskUrl = '';
-let isDrawing = false;
-let lastX = 0;
-let lastY = 0;
 let tool = 'brush';
 let singleChannelMask;
 let brushPreview, brushSizeDisplay, brushSizeSlider, brushPreviewTimeout;
+
+let currentMaskState;
+
+function initializeCurrentMaskState() {
+    currentMaskState = overlayCtx.createImageData(overlayCanvas.width, overlayCanvas.height);
+    // Fill with transparent green
+    for (let i = 0; i < currentMaskState.data.length; i += 4) {
+        currentMaskState.data[i] = 0;     // Red
+        currentMaskState.data[i + 1] = 255; // Green
+        currentMaskState.data[i + 2] = 0;   // Blue
+        currentMaskState.data[i + 3] = MAX_OPACITY; // Alpha
+    }
+}
 
 function adjustCanvasSize() {
     const container = document.querySelector('.canvas-container');
@@ -32,8 +49,6 @@ function adjustCanvasSize() {
         canvas.style.height = `${canvas.height * scale}px`;
     });
 }
-
-
 
 function loadImagePair(img) {
     const imageUrl = `/image/images/${img}`;
@@ -88,8 +103,19 @@ function loadMask(maskUrl) {
     maskImg.onload = function() {
         maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
         maskCtx.drawImage(maskImg, 0, 0, maskCanvas.width, maskCanvas.height);
-        singleChannelMask = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-        applyMaskToOverlay();
+        
+        const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+        
+        initializeCurrentMaskState();
+        
+        for (let i = 0; i < maskData.data.length; i += 4) {
+            const gray = maskData.data[i]; // Assuming grayscale image, we only need one channel
+            // For white pixels (255), alpha should be MAX_OPACITY * 255
+            // For black pixels (0), alpha should be 0
+            currentMaskState.data[i + 3] = Math.round(gray * MAX_OPACITY);
+        }
+        
+        overlayCtx.putImageData(currentMaskState, 0, 0);
     };
     maskImg.src = `${maskUrl}?t=${new Date().getTime()}`;
 }
@@ -102,11 +128,205 @@ function applyMaskToOverlay() {
         overlayImageData.data[i] = 0; // Red
         overlayImageData.data[i + 1] = 255; // Green
         overlayImageData.data[i + 2] = 0; // Blue
-        overlayImageData.data[i + 3] = Math.round(gray * MAX_OPACITY); // Alpha
+        overlayImageData.data[i + 3] = MAX_OPACITY; // Alpha
     }
 
     overlayCtx.putImageData(overlayImageData, 0, 0);
 }
+
+function renderLoop(currentTime) {
+    if (!lastFrameTime) lastFrameTime = currentTime;
+    const deltaTime = currentTime - lastFrameTime;
+
+    if (deltaTime >= FRAME_DURATION) {
+        // Clear the overlay
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        
+        // Always redraw the current mask state
+        if (currentMaskState) {
+            overlayCtx.putImageData(currentMaskState, 0, 0);
+        }
+        
+        // Process all drawing operations in the queue
+        while (drawQueue.length > 0) {
+            const drawOp = drawQueue.shift();
+            if (drawOp.x0 === drawOp.x1 && drawOp.y0 === drawOp.y1) {
+                drawPoint(drawOp.x0, drawOp.y0);
+            } else {
+                performDraw(drawOp.x0, drawOp.y0, drawOp.x1, drawOp.y1);
+            }
+        }
+    
+        // Always draw brush outline if we have a last known position
+        if (lastX !== undefined && lastY !== undefined) {
+            drawBrushOutline();
+        }
+        
+        lastFrameTime = currentTime;
+    }
+    
+    animationFrameId = requestAnimationFrame(renderLoop);
+}
+function stopRenderLoop() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+}
+
+function drawBrushOutline() {
+    if (lastX === undefined || lastY === undefined) return;
+
+    // Use a temporary canvas for the outline to avoid flickering
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = overlayCanvas.width;
+    tempCanvas.height = overlayCanvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    tempCtx.drawImage(overlayCanvas, 0, 0);
+    
+    tempCtx.beginPath();
+    tempCtx.arc(lastX, lastY, BRUSH_SIZE, 0, Math.PI * 2);
+    tempCtx.strokeStyle = tool === 'brush' ? `rgba(0, 255, 0, ${MAX_OPACITY})` : `rgba(255, 0, 0, ${MAX_OPACITY})`;
+    tempCtx.lineWidth = 2;
+    tempCtx.stroke();
+
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    overlayCtx.drawImage(tempCanvas, 0, 0);
+}
+
+// Draw brush preview
+function drawBrushPreview() {
+    const ctx = overlayCtx;
+    ctx.save();
+    ctx.globalCompositeOperation = 'difference';
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, BRUSH_SIZE, 0, Math.PI * 2);
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+}
+
+// Event handlers
+function startDrawing(e) {
+    isDrawing = true;
+    const pos = getMousePos(overlayCanvas, e);
+    lastX = pos.x;
+    lastY = pos.y;
+    drawQueue.push({x0: lastX, y0: lastY, x1: lastX, y1: lastY});
+}
+
+function draw(e) {
+    const pos = getMousePos(overlayCanvas, e);
+    if (isDrawing) {
+        drawQueue.push({x0: lastX, y0: lastY, x1: pos.x, y1: pos.y});
+    }
+    lastX = pos.x;
+    lastY = pos.y;
+}
+
+function performDraw(x0, y0, x1, y1) {
+    const dx = Math.abs(x1 - x0);
+    const dy = Math.abs(y1 - y0);
+    const sx = (x0 < x1) ? 1 : -1;
+    const sy = (y0 < y1) ? 1 : -1;
+    let err = dx - dy;
+
+    const imageData = overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height);
+    const data = imageData.data;
+
+    function drawBrushCircle(centerX, centerY) {
+        const radius = BRUSH_SIZE;
+        for (let y = -radius; y <= radius; y++) {
+            for (let x = -radius; x <= radius; x++) {
+                if (x * x + y * y <= radius * radius) {
+                    const pixelX = centerX + x;
+                    const pixelY = centerY + y;
+                    if (pixelX >= 0 && pixelX < overlayCanvas.width && pixelY >= 0 && pixelY < overlayCanvas.height) {
+                        const index = (pixelY * overlayCanvas.width + pixelX) * 4;
+                        if (tool === 'brush') {
+                            data[index] = 0;     // Red
+                            data[index + 1] = 255; // Green
+                            data[index + 2] = 0;   // Blue
+                            data[index + 3] = Math.round(MAX_OPACITY * 255); // Alpha
+                        } else { // eraser
+                            data[index + 3] = 0; // Set alpha to 0 (fully transparent)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Draw initial point
+    drawBrushCircle(x0, y0);
+
+    while (true) {
+        if (x0 === x1 && y0 === y1) break;
+        const e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+        
+        drawBrushCircle(x0, y0);
+    }
+
+    overlayCtx.putImageData(imageData, 0, 0);
+
+    // Update currentMaskState after drawing
+    currentMaskState = imageData;
+}
+
+function drawPoint(x, y) {
+    const imageData = overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height);
+    const data = imageData.data;
+
+    const radius = BRUSH_SIZE;
+    for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+            if (dx * dx + dy * dy <= radius * radius) {
+                const pixelX = x + dx;
+                const pixelY = y + dy;
+                if (pixelX >= 0 && pixelX < overlayCanvas.width && pixelY >= 0 && pixelY < overlayCanvas.height) {
+                    const index = (pixelY * overlayCanvas.width + pixelX) * 4;
+                    if (tool === 'brush') {
+                        data[index] = 0;     // Red
+                        data[index + 1] = 255; // Green
+                        data[index + 2] = 0;   // Blue
+                        data[index + 3] = Math.round(MAX_OPACITY * 255); // Alpha
+                    } else { // eraser
+                        data[index + 3] = 0; // Set alpha to 0 (fully transparent)
+                    }
+                }
+            }
+        }
+    }
+
+    overlayCtx.putImageData(imageData, 0, 0);
+    
+    // Update currentMaskState after drawing
+    currentMaskState = imageData;
+}
+
+function stopDrawing() {
+    isDrawing = false;
+}
+
+// Generate mask for saving
+function generateMask() {
+    return new Promise((resolve) => {
+        const worker = new Worker('maskGenerator.js');
+        worker.postMessage({
+            overlayData: overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height).data,
+            width: overlayCanvas.width,
+            height: overlayCanvas.height
+        });
+        worker.onmessage = (e) => {
+            resolve(e.data);
+        };
+    });
+}
+
 
 function drawLine(x0, y0, x1, y1) {
     const dx = Math.abs(x1 - x0);
@@ -122,25 +342,6 @@ function drawLine(x0, y0, x1, y1) {
         const e2 = 2 * err;
         if (e2 > -dy) { err -= dy; x0 += sx; }
         if (e2 < dx) { err += dx; y0 += sy; }
-    }
-}
-
-function drawPoint(x, y) {
-    for (let dx = -BRUSH_SIZE; dx <= BRUSH_SIZE; dx++) {
-        for (let dy = -BRUSH_SIZE; dy <= BRUSH_SIZE; dy++) {
-            if (dx*dx + dy*dy <= BRUSH_SIZE*BRUSH_SIZE) {
-                const cx = x + dx;
-                const cy = y + dy;
-                if (cx >= 0 && cx < maskCanvas.width && cy >= 0 && cy < maskCanvas.height) {
-                    const i = (cy * maskCanvas.width + cx) * 4;
-                    const value = tool === 'brush' ? 255 : 0;
-                    singleChannelMask.data[i] = value;
-                    singleChannelMask.data[i+1] = value;
-                    singleChannelMask.data[i+2] = value;
-                    singleChannelMask.data[i+3] = 255;
-                }
-            }
-        }
     }
 }
 
@@ -170,48 +371,53 @@ function getMousePos(canvas, evt) {
     };
 }
 
-function startDrawing(e) {
-    isDrawing = true;
-    const pos = getMousePos(overlayCanvas, e);
-    lastX = pos.x;
-    lastY = pos.y;
-    draw(e);
-}
-
-function draw(e) {
-    if (!isDrawing) return;
-    
-    const pos = getMousePos(overlayCanvas, e);
-    drawLine(lastX, lastY, pos.x, pos.y);
-    lastX = pos.x;
-    lastY = pos.y;
-    
-    maskCtx.putImageData(singleChannelMask, 0, 0);
-    applyMaskToOverlay();
-}
-
-function stopDrawing() {
-    isDrawing = false;
-}
-
 function clearMask() {
-    maskCtx.fillStyle = 'black';
-    maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-    singleChannelMask = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-    applyMaskToOverlay();
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    currentMaskState = overlayCtx.createImageData(overlayCanvas.width, overlayCanvas.height);
+    // Fill with transparent pixels
+    for (let i = 0; i < currentMaskState.data.length; i += 4) {
+        currentMaskState.data[i] = 0;     // Red
+        currentMaskState.data[i + 1] = 0; // Green
+        currentMaskState.data[i + 2] = 0; // Blue
+        currentMaskState.data[i + 3] = 0; // Alpha (fully transparent)
+    }
+}
+
+function generateMask() {
+    const overlayData = overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height).data;
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = overlayCanvas.width;
+    maskCanvas.height = overlayCanvas.height;
+    const maskCtx = maskCanvas.getContext('2d');
+
+    // Create a grayscale ImageData
+    const maskImageData = maskCtx.createImageData(overlayCanvas.width, overlayCanvas.height);
+
+    for (let i = 0; i < overlayData.length; i += 4) {
+        // Use only the green channel value
+        const value = overlayData[i + 1];
+        maskImageData.data[i] = value;     // Red
+        maskImageData.data[i + 1] = value; // Green
+        maskImageData.data[i + 2] = value; // Blue
+        maskImageData.data[i + 3] = Math.round(overlayData[i + 3] / MAX_OPACITY); // Alpha
+    }
+
+    maskCtx.putImageData(maskImageData, 0, 0);
+
+    // Convert to grayscale JPEG
+    return maskCanvas.toDataURL('image/jpeg', 1.0);
 }
 
 function saveMask() {
     return new Promise((resolve, reject) => {
-        maskCtx.putImageData(singleChannelMask, 0, 0);
-        const maskData = maskCanvas.toDataURL('image/jpeg', 0.98);
+        const maskDataUrl = generateMask();
         fetch('/save_mask', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                image: maskData,
+                image: maskDataUrl,
                 maskFilename: currentMaskUrl.split('/').pop()
             }),
         })
@@ -244,13 +450,17 @@ function handleKeyNavigation(event) {
         console.log('Increase brush size');
         updateBrushSize(BRUSH_SIZE + BRUSH_INCREMENT);
     } else if (event.key === ' ') {
-        event.preventDefault();  // Prevent scrolling
+        event.preventDefault();
         toolToggle.click();
     } else if (event.key === 'd') {
-        event.preventDefault();  // Prevent browser's default 'bookmark' action
+        event.preventDefault();
         downloadAll();
     } else if (event.key === 'h') {
         overlayToggle.click();
+    } else if (event.key === 'c') {
+        clearMask();
+    } else if (event.key === 'r') {
+        location.reload();
     }
 }
 
@@ -265,14 +475,15 @@ function updateBrushPreview(size) {
     brushPreview.style.width = `${size}px`;
     brushPreview.style.height = `${size}px`;
     brushPreview.style.display = 'block';
-    brushPreview.style.backgroundColor = tool === 'brush' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 0, 0, 0.3)';
-    brushPreview.style.borderColor = tool === 'brush' ? 'rgba(0, 255, 0, 0.6)' : 'rgba(255, 0, 0, 0.6)';
+    brushPreview.style.backgroundColor = tool === 'brush' ? `rgba(0, 255, 0, ${MAX_OPACITY})` : `rgba(255, 0, 0, ${MAX_OPACITY / 2})`;
+    brushPreview.style.borderColor = tool === 'brush' ? `rgba(0, 255, 0, ${MAX_OPACITY})` : `rgba(255, 0, 0, ${MAX_OPACITY})`;
     
     clearTimeout(brushPreviewTimeout);
     brushPreviewTimeout = setTimeout(() => {
         brushPreview.style.display = 'none';
     }, 1000);
 }
+
 
 function hideBrushPreview() {
     clearTimeout(brushPreviewTimeout);
@@ -335,25 +546,11 @@ function navigateImage(direction) {
 }
 
 function hideBrushOutline() {
-    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    applyMaskToOverlay();
-}
-
-function drawBrushOutline(event) {
-    const pos = getMousePos(overlayCanvas, event);
-    
-    // Clear the previous overlay and redraw the mask
-    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    applyMaskToOverlay();
-    
-    // Draw brush outline
-    overlayCtx.beginPath();
-    overlayCtx.arc(pos.x, pos.y, BRUSH_SIZE, 0, Math.PI * 2);
-    // Green outline for brush, red outline for eraser
-    overlayCtx.strokeStyle = tool === 'brush' ? 'rgba(0, 255, 0, 0.6)' : 'rgba(255, 0, 0, 0.6)';
-    
-    overlayCtx.lineWidth = 2;
-    overlayCtx.stroke();
+    if (currentMaskState) {
+        overlayCtx.putImageData(currentMaskState, 0, 0);
+    } else {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
 }
 
 function initializeTitleEdit() {
@@ -417,6 +614,7 @@ function updateUrl(img) {
 document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const img = urlParams.get('img');
+    initializeCurrentMaskState();
 
     if (img) {
         loadImagePair(img);
@@ -429,6 +627,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateUrl(data.filename);
             });
     }
+
+    animationFrameId = requestAnimationFrame(renderLoop);
 
     window.addEventListener('resize', () => {
         const container = document.querySelector('.canvas-container');
@@ -481,9 +681,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // Add event listener for showing brush outline
-    overlayCanvas.addEventListener('mousemove', drawBrushOutline);
+    // overlayCanvas.addEventListener('mousemove', drawBrushOutline);
     overlayCanvas.addEventListener('mouseleave', hideBrushOutline);
-    overlayCanvas.addEventListener('touchmove', drawBrushOutline);
+    // overlayCanvas.addEventListener('touchmove', drawBrushOutline);
     overlayCanvas.addEventListener('touchend', hideBrushOutline);
 
     // Listen for brush changes
