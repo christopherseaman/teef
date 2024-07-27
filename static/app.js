@@ -111,15 +111,17 @@ function loadMask(maskUrl) {
         
         for (let i = 0; i < maskData.data.length; i += 4) {
             const gray = maskData.data[i]; // Assuming grayscale image, we only need one channel
-            // For white pixels (255), alpha should be MAX_OPACITY * 255
-            // For black pixels (0), alpha should be 0
-            currentMaskState.data[i + 3] = Math.round(gray * MAX_OPACITY);
+            currentMaskState.data[i] = 0; // Red
+            currentMaskState.data[i + 1] = gray; // Green (used for grayscale value)
+            currentMaskState.data[i + 2] = 0; // Blue
+            currentMaskState.data[i + 3] = gray > 0 ? Math.round(gray * MAX_OPACITY) : 0; // Alpha
         }
         
         overlayCtx.putImageData(currentMaskState, 0, 0);
     };
     maskImg.src = `${maskUrl}?t=${new Date().getTime()}`;
 }
+
 
 function applyMaskToOverlay() {
     const overlayImageData = overlayCtx.createImageData(overlayCanvas.width, overlayCanvas.height);
@@ -371,29 +373,24 @@ function clearMask() {
 }
 
 function generateMask() {
-    // Temporarily hide brush outline
     const tempShowBrushOutline = showBrushOutline;
     showBrushOutline = false;
-    
-    // Force a redraw of the canvas without the brush outline
+
     overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
     if (currentMaskState) {
         overlayCtx.putImageData(currentMaskState, 0, 0);
     }
 
-    // Now generate the mask
     const overlayData = overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height).data;
     const maskCanvas = document.createElement('canvas');
     maskCanvas.width = overlayCanvas.width;
     maskCanvas.height = overlayCanvas.height;
     const maskCtx = maskCanvas.getContext('2d');
 
-    // Create a grayscale ImageData
     const maskImageData = maskCtx.createImageData(overlayCanvas.width, overlayCanvas.height);
 
     for (let i = 0; i < overlayData.length; i += 4) {
-        // Use only the green channel value
-        const value = overlayData[i + 1];
+        const value = overlayData[i + 1]; // Use green channel value for grayscale
         maskImageData.data[i] = value;     // Red
         maskImageData.data[i + 1] = value; // Green
         maskImageData.data[i + 2] = value; // Blue
@@ -402,18 +399,46 @@ function generateMask() {
 
     maskCtx.putImageData(maskImageData, 0, 0);
 
-    returnObject = maskCanvas.toDataURL('image/jpeg', 1.0); // Save JPEG before turning outline back on
+    // Convert canvas to grayscale JPEG
+    const jpegQuality = 1; // JPEG quality (0 to 1)
+    const grayscaleJPEG = convertToGrayscaleJPEG(maskCanvas, jpegQuality);
 
-    // Restore brush outline visibility
     showBrushOutline = tempShowBrushOutline;
-
-    // Redraw the overlay with the brush outline if it was visible before
     if (showBrushOutline) {
         drawBrushOutline();
     }
 
-    // Convert to grayscale JPEG
-    return returnObject;
+    return grayscaleJPEG;
+}
+
+function convertToGrayscaleJPEG(canvas, quality) {
+    // Create an off-screen canvas for grayscale conversion
+    const offScreenCanvas = document.createElement('canvas');
+    offScreenCanvas.width = canvas.width;
+    offScreenCanvas.height = canvas.height;
+    const offScreenCtx = offScreenCanvas.getContext('2d');
+
+    // Draw the original canvas onto the off-screen canvas
+    offScreenCtx.drawImage(canvas, 0, 0);
+
+    // Get the image data from the off-screen canvas
+    const imageData = offScreenCtx.getImageData(0, 0, offScreenCanvas.width, offScreenCanvas.height);
+    const data = imageData.data;
+
+    // Convert to grayscale
+    for (let i = 0; i < data.length; i += 4) {
+        const grayscale = data[i]; // Red channel (same as green and blue since it's grayscale)
+        data[i] = grayscale;       // Red
+        data[i + 1] = grayscale;   // Green
+        data[i + 2] = grayscale;   // Blue
+        data[i + 3] = 255;         // Alpha
+    }
+
+    // Put the grayscale data back to the off-screen canvas
+    offScreenCtx.putImageData(imageData, 0, 0);
+
+    // Convert to JPEG with specified quality
+    return offScreenCanvas.toDataURL('image/jpeg', quality);
 }
 
 function saveMask() {
