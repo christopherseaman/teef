@@ -16,6 +16,7 @@ let BRUSH_SIZE = 10;
 let BRUSH_INCREMENT = 5;
 let MIN_BRUSH = 2;
 let MAX_BRUSH = 50;
+let showBrushOutline = true;
 
 let currentImageUrl = '';
 let currentMaskUrl = '';
@@ -157,8 +158,8 @@ function renderLoop(currentTime) {
             }
         }
     
-        // Always draw brush outline if we have a last known position
-        if (lastX !== undefined && lastY !== undefined) {
+        // Draw brush outline if we have a last known position and showBrushOutline is true
+        if (showBrushOutline && lastX !== undefined && lastY !== undefined) {
             drawBrushOutline();
         }
         
@@ -167,6 +168,7 @@ function renderLoop(currentTime) {
     
     animationFrameId = requestAnimationFrame(renderLoop);
 }
+
 function stopRenderLoop() {
     if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
@@ -312,21 +314,6 @@ function stopDrawing() {
     isDrawing = false;
 }
 
-// Generate mask for saving
-function generateMask() {
-    return new Promise((resolve) => {
-        const worker = new Worker('maskGenerator.js');
-        worker.postMessage({
-            overlayData: overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height).data,
-            width: overlayCanvas.width,
-            height: overlayCanvas.height
-        });
-        worker.onmessage = (e) => {
-            resolve(e.data);
-        };
-    });
-}
-
 
 function drawLine(x0, y0, x1, y1) {
     const dx = Math.abs(x1 - x0);
@@ -384,6 +371,17 @@ function clearMask() {
 }
 
 function generateMask() {
+    // Temporarily hide brush outline
+    const tempShowBrushOutline = showBrushOutline;
+    showBrushOutline = false;
+    
+    // Force a redraw of the canvas without the brush outline
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    if (currentMaskState) {
+        overlayCtx.putImageData(currentMaskState, 0, 0);
+    }
+
+    // Now generate the mask
     const overlayData = overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height).data;
     const maskCanvas = document.createElement('canvas');
     maskCanvas.width = overlayCanvas.width;
@@ -399,13 +397,23 @@ function generateMask() {
         maskImageData.data[i] = value;     // Red
         maskImageData.data[i + 1] = value; // Green
         maskImageData.data[i + 2] = value; // Blue
-        maskImageData.data[i + 3] = Math.round(overlayData[i + 3] / MAX_OPACITY); // Alpha
+        maskImageData.data[i + 3] = 255;   // Alpha (fully opaque)
     }
 
     maskCtx.putImageData(maskImageData, 0, 0);
 
+    returnObject = maskCanvas.toDataURL('image/jpeg', 1.0); // Save JPEG before turning outline back on
+
+    // Restore brush outline visibility
+    showBrushOutline = tempShowBrushOutline;
+
+    // Redraw the overlay with the brush outline if it was visible before
+    if (showBrushOutline) {
+        drawBrushOutline();
+    }
+
     // Convert to grayscale JPEG
-    return maskCanvas.toDataURL('image/jpeg', 1.0);
+    return returnObject;
 }
 
 function saveMask() {
